@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Our Towers in Action</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <style>
+        body {
+            display: flex;
+            flex-wrap: wrap;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+        }
+
+        #menu {
+            width: 100%;
+            max-width: 300px;
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-right: 1px solid #ccc;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+
+        #menu h2 {
+            margin-top: 0;
+        }
+
+        #menu p {
+            margin-bottom: 20px;
+        }
+
+        .menu-item {
+            margin: 10px 0;
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.2s;
+            display: none; /* Hidden initially */
+        }
+
+        .menu-item:hover {
+            background-color: #e0f7ff;
+        }
+
+        .menu-content {
+            margin-top: 5px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            display: none; /* Hidden initially */
+        }
+
+        #map-container {
+            flex-grow: 1;
+            width: calc(100% - 300px);
+            min-height: 100vh;
+            position: relative;
+        }
+
+        #map {
+            height: 100%;
+        }
+
+        #runScriptButton {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        #runScriptButton:hover {
+            background-color: #0056b3;
+        }
+
+        /* Spinner styles */
+        #loadingOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #ccc;
+            border-top: 5px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .risk-low {
+            color: rgb(102, 102, 102);
+            font-weight: bold;
+        }
+
+        .risk-blue {
+            color: blue;
+            font-weight: bold;
+        }
+
+        .risk-yellow {
+            color: rgb(187, 187, 0);
+            font-weight: bold;
+        }
+
+        .risk-red {
+            color: rgb(187, 0, 0);
+            font-weight: bold;
+        }
+
+        .risk-very-red {
+            color: red;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        #getStartedButton {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }   
+
+        #getStartedButton:hover {
+             background-color: #218838;
+}
+    </style>
+</head>
+<body>
+    <div id="menu">
+        <img id="logo" src="https://fire-zone.co/wp-content/uploads/2024/04/cropped-Untitled-3-1024x218.png" alt="Logo" style="width: 100%; max-width: 300px; height: auto;">
+        <h2>Personalized Report</h2>
+        <p id="instructions">Please click on your home and press the Run button to receive your personalized report.</p>
+        <div class="menu-item" id="acreageSection">
+            Estimated Coverage
+            <div class="menu-content" id="acreageContent">
+                <p>The <span style="color: blue; font-weight: bold;">blue circle</span> is an estimation of 1.5 acres of coverage that <b>one</b> tower can provide.</p>
+            </div>
+        </div>
+        <div class="menu-item" id="fireRiskSection">
+            Fire Risk
+            <div class="menu-content" id="fireRiskContent">
+                <p>Your Wildfire Hazard Potential is roughly <span id="whpMean">N/A</span>.</p>
+                <p>(0 being very low risk, 5 being very high risk)</p>
+                <p>In your ZIP code, the score ranges between <span id="whpMin">N/A</span> and <span id="whpMax">N/A</span>.</p>
+            </div>
+        </div>
+        <div class="menu-item" id="whpExplanationSection">
+            What Your Risk Means
+            <div class="menu-content" id="whpExplanationContent">
+                <p>Your Wildfire Hazard Potential indicates a <span id="whpRisk">N/A</span> of potentially deadly wildfires.</p>
+                <p>No matter your potential risk, taking action now means protecting what matters most.</p>
+                <button id="getStartedButton" onclick="window.location.href='https://fire-zone.co/contact-us'">Get Started</button> 
+            </div>
+        </div>
+        <div id="searchBarContainer" style="margin-bottom: 20px;">
+            <input 
+                type="text" 
+                id="searchBar" 
+                placeholder="Search location..." 
+                style="width: 90%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;"
+            />
+        </div>        
+    </div>
+
+    <div id="map-container">
+        <div id="map">
+            <div id="loadingOverlay">
+                <div class="spinner"></div>
+            </div>
+        </div>
+        <button id="runScriptButton">Run</button>
+    </div>
+
+    <script>
+        document.getElementById('searchBar').addEventListener('input', function () {
+    const query = this.value.trim();
+    const resultsContainerId = 'searchResults';
+
+    if (!document.getElementById(resultsContainerId)) {
+        const resultsContainer = document.createElement('div');
+        resultsContainer.id = resultsContainerId;
+        resultsContainer.style.position = 'absolute';
+        resultsContainer.style.background = '#fff';
+        resultsContainer.style.border = '1px solid #ccc';
+        resultsContainer.style.width = '80%';
+        resultsContainer.style.zIndex = '1001';
+        resultsContainer.style.maxHeight = '200px';
+        resultsContainer.style.overflowY = 'auto';
+        resultsContainer.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
+        this.parentElement.appendChild(resultsContainer);
+    }
+    const resultsContainer = document.getElementById(resultsContainerId);
+
+    if (query.length < 3) {
+        resultsContainer.style.display = 'none';
+        return; // Skip processing for short inputs
+    }
+
+    // Search restricted to the USA
+    fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=us&format=json&limit=5`)
+        .then(response => response.json())
+        .then(results => {
+            resultsContainer.innerHTML = ''; // Clear old results
+            resultsContainer.style.display = results.length > 0 ? 'block' : 'none';
+
+            if (results.length === 0) {
+                resultsContainer.innerHTML = '<p style="padding: 10px; color: #666;">No results found.</p>';
+                return;
+            }
+
+            results.forEach(result => {
+                const resultElement = document.createElement('div');
+                resultElement.style.padding = '10px';
+                resultElement.style.cursor = 'pointer';
+                resultElement.style.borderBottom = '1px solid #eee';
+                resultElement.textContent = `${result.display_name}`;
+                resultElement.onclick = () => {
+                    const lat = parseFloat(result.lat);
+                    const lon = parseFloat(result.lon);
+                    const newLocation = [lat, lon];
+
+                    map.setView(newLocation, 17);
+                    marker.setLatLng(newLocation);
+                    currentCoordinates = newLocation;
+
+                    resultsContainer.style.display = 'none'; // Hide suggestions
+                    document.getElementById('searchBar').value = result.display_name; // Update input field
+                };
+                resultsContainer.appendChild(resultElement);
+            });
+        })
+        .catch(err => console.error("Search Error:", err));
+});
+
+document.addEventListener('click', function (event) {
+    const resultsContainer = document.getElementById('searchResults');
+    if (resultsContainer && !event.target.closest('#searchResults') && event.target.id !== 'searchBar') {
+        resultsContainer.style.display = 'none'; // Hide dropdown if clicked outside
+    }
+
+    fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`)
+        .then(response => response.json())
+        .then(results => {
+            resultsContainer.innerHTML = ''; // Clear old results
+            resultsContainer.style.display = results.length > 0 ? 'block' : 'none';
+
+            if (results.length === 0) {
+                resultsContainer.innerHTML = '<p style="padding: 10px; color: #666;">No results found.</p>';
+                return;
+            }
+
+            results.forEach(result => {
+                const resultElement = document.createElement('div');
+                resultElement.style.padding = '10px';
+                resultElement.style.cursor = 'pointer';
+                resultElement.style.borderBottom = '1px solid #eee';
+                resultElement.textContent = `${result.display_name}`;
+                resultElement.onclick = () => {
+                    const lat = parseFloat(result.lat);
+                    const lon = parseFloat(result.lon);
+                    const newLocation = [lat, lon];
+
+                    map.setView(newLocation, 13);
+                    marker.setLatLng(newLocation);
+                    currentCoordinates = newLocation;
+
+                    resultsContainer.style.display = 'none'; // Hide suggestions
+                    document.getElementById('searchBar').value = result.display_name; // Update input field
+                };
+                resultsContainer.appendChild(resultElement);
+            });
+        })
+        .catch(err => console.error("Search Error:", err));
+});
+
+document.addEventListener('click', function (event) {
+    const resultsContainer = document.getElementById('searchResults');
+    if (resultsContainer && !event.target.closest('#searchResults') && event.target.id !== 'searchBar') {
+        resultsContainer.style.display = 'none'; // Hide dropdown if clicked outside
+    }
+});
+
+        var map = L.map('map').setView([34.156811, -118.673056], 13);
+
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '&copy; <a href="https://www.esri.com/en-us/arcgis/products/arcgis-online">Esri</a>',
+            maxZoom: 19
+        }).addTo(map);
+        
+        var marker = L.marker([34.156811, -118.673056]).addTo(map);
+        var currentCoordinates = [34.156811, -118.673056];
+
+        map.on('click', function (e) {
+            currentCoordinates = [e.latlng.lat, e.latlng.lng];
+            marker.setLatLng(currentCoordinates);
+        });
+
+        document.getElementById('runScriptButton').onclick = function () {
+    var loadingOverlay = document.getElementById('loadingOverlay');
+    var instructions = document.getElementById('instructions');
+    var acreageSection = document.getElementById('acreageSection');
+    var fireRiskSection = document.getElementById('fireRiskSection');
+    var whpExplanationSection = document.getElementById('whpExplanationSection');
+
+    // Hide instructions
+    if (instructions) instructions.style.display = 'none';
+
+    var searchBar = document.getElementById('searchBar');
+    searchBar.style.display = 'none';
+
+    var searchResultsContainer = document.getElementById('searchResults');
+    if (searchResultsContainer) {
+        searchResultsContainer.style.display = 'none';
+    }
+
+    // Show loading spinner
+    loadingOverlay.style.display = 'flex';
+
+    var lat = currentCoordinates[0];
+    var lon = currentCoordinates[1];
+
+    // Reverse geocoding to get ZIP code based on latitude and longitude
+    fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
+        .then(response => response.json())
+        .then(data => {
+            var zipCode = data.address.postcode; // Extract the ZIP code from the response
+
+            if (!zipCode) {
+                throw new Error("ZIP code not found for the selected location.");
+            }
+
+            // Call both APIs simultaneously using Promise.all
+            return Promise.all([ 
+                fetch(`https://vde01r7u2f.execute-api.us-east-2.amazonaws.com/default/getRadius?lat=${lat}&lon=${lon}`).then(response => response.json()),
+                fetch(`https://jup8vg17ag.execute-api.us-east-2.amazonaws.com/default/getFireRisk?zip_code=${zipCode}`).then(response => response.json())
+            ]);
+        })
+        .then(([radiusData, fireRiskData]) => {
+            // Remove existing circles from the map
+            map.eachLayer(function (layer) {
+                if (layer instanceof L.Circle) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            // Add new circles from radiusData
+            radiusData.circles.forEach(function (circle) {
+                var newCircle = L.circle([circle[0], circle[1]], {
+                    radius: circle[2],
+                    color: 'blue',
+                    fillOpacity: 0.3
+                }).addTo(map);
+
+                // Zoom into the circle
+                map.setView([circle[0], circle[1]], 20);
+            });
+
+            // Update the Fire Risk section
+            document.getElementById('whpMin').textContent = fireRiskData["WHP Min"];
+            document.getElementById('whpMax').textContent = fireRiskData["WHP Max"];
+            document.getElementById('whpMean').textContent = fireRiskData["WHP Mean"];
+
+            // Update the WHP Risk explanation section
+            var whpMean = fireRiskData["WHP Mean"];
+            var whpRisk = document.getElementById('whpRisk');
+
+            if (whpMean >= 0 && whpMean < 1) {
+                whpRisk.textContent = 'very low risk';
+                whpRisk.className = 'risk-low';
+            } else if (whpMean >= 1 && whpMean < 2) {
+                whpRisk.textContent = 'low risk';
+                whpRisk.className = 'risk-blue';
+            } else if (whpMean >= 2 && whpMean < 3) {
+                whpRisk.textContent = 'moderate risk';
+                whpRisk.className = 'risk-yellow';
+            } else if (whpMean >= 3 && whpMean < 4) {
+                whpRisk.textContent = 'high risk';
+                whpRisk.className = 'risk-red';
+            } else if (whpMean >= 4 && whpMean <= 5) {
+                whpRisk.textContent = 'very high risk';
+                whpRisk.className = 'risk-very-red';
+            }
+
+            // Show the menu items and automatically expand them
+            acreageSection.style.display = 'block';
+            fireRiskSection.style.display = 'block';
+            whpExplanationSection.style.display = 'block';
+
+            document.getElementById('acreageContent').style.display = 'block';
+            document.getElementById('fireRiskContent').style.display = 'block';
+            document.getElementById('whpExplanationContent').style.display = 'block';
+        })
+        .catch(err => alert("Error: " + err))
+        .finally(() => document.getElementById('loadingOverlay').style.display = 'none');
+};
+
+
+        function toggleContent(sectionId, contentId) {
+            const content = document.getElementById(contentId);
+            content.style.display = content.style.display === 'none' ? 'block' : 'none';
+        }
+
+
+    </script>
+</body>
+</html>
